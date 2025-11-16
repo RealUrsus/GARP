@@ -3,7 +3,10 @@ from pyroute2 import IPRoute, NetlinkError
 
 if __name__ == "__main__":
     # Parse excluded real interfaces from command line
-    excluded_real = sys.argv[1:] if len(sys.argv) > 1 else []
+    excluded_real = []
+    if '-e' in sys.argv:
+        idx = sys.argv.index('-e')
+        excluded_real = sys.argv[idx + 1:]
 
     # Always exclude virtual interfaces
     virtual_prefixes = ('lo', 'docker', 'veth', 'br-', 'virbr', 'vmnet', 'vme')
