@@ -1,12 +1,31 @@
+import sys
 from pyroute2 import IPRoute, NetlinkError
 
 if __name__ == "__main__":
-    ip = IPRoute()
-    interfaces = ip.get_links()
+    # Parse excluded real interfaces from command line
+    excluded_real = []
+    if '-e' in sys.argv:
+        idx = sys.argv.index('-e')
+        excluded_real = sys.argv[idx + 1:]
 
-    for interface in interfaces:
-        print(f"Index: {interface['index']}, Name: {interface.get_attr('IFLA_IFNAME')}, State: {interface.get_attr('IFLA_OPERSTATE')}")
-        if_name = interface.get_attr('IFLA_IFNAME')
-        if not if_name.startswith(('lo', 'docker', 'veth', 'br-', 'virbr', 'vmnet', 'vme', 'enp10s0', 'enp11s0')):
-            # flush all addresses with IFA_LABEL='if_name':
-            ip.flush_addr(label=if_name)
+    # Always exclude virtual interfaces
+    virtual_prefixes = ('lo', 'docker', 'veth', 'br-', 'virbr', 'vmnet', 'vme')
+
+    ip = IPRoute()
+    try:
+        interfaces = ip.get_links()
+
+        for interface in interfaces:
+            print(f"Index: {interface['index']}, Name: {interface.get_attr('IFLA_IFNAME')}, State: {interface.get_attr('IFLA_OPERSTATE')}")
+            if_name = interface.get_attr('IFLA_IFNAME')
+
+            # Skip virtual interfaces and excluded real interfaces
+            if not if_name.startswith(virtual_prefixes) and if_name not in excluded_real:
+                try:
+                    # flush all addresses with IFA_LABEL='if_name':
+                    ip.flush_addr(label=if_name)
+                    print(f"Flushed addresses on {if_name}")
+                except NetlinkError as e:
+                    print(f"Failed to flush {if_name}: {e}")
+    finally:
+        ip.close()
