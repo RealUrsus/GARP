@@ -1,6 +1,6 @@
 # GARP - Gratuitous ARP Broadcaster
 
-Send unsolicited ARP packets to update neighbors' ARP caches. Useful for network failover, IP address changes, and duplicate IP detection.
+Send unsolicited ARP packets to update neighbors' ARP caches. Internal component for virtual router implementation.
 
 ## What is Gratuitous ARP?
 
@@ -71,22 +71,33 @@ Interface: eth0, MAC Address: aa:bb:cc:dd:ee:ff
 - Only use on networks you own or have permission to test
 - May trigger IDS/IPS alerts
 
+## Code Issues
+
+**1. Redundant Functions (garp.py:3, garp.py:30)**
+- Two implementations doing the same thing
+- Inconsistent: one uses manual byte concat, other uses struct.pack
+- Recommendation: Consolidate to single function
+
+**2. Broadcast Address Edge Case (garp.py:66, garp.py:76)**
+- `address.broadcast` can be `None` for:
+  - Point-to-point interfaces (no broadcast domain)
+  - /32 netmask interfaces
+  - Interfaces without broadcast set
+- Line 22: `socket.inet_aton(broadcast)` will crash if broadcast is None
+- **Fix needed**: Check `if broadcast is not None` before calling send_unsolicited_arp_broadcast()
+- In virtual router context, if all interfaces guaranteed to have broadcast, this may not be an issue
+
+**3. Missing Error Handling**
+- Socket operations can fail (permission denied if not root, interface doesn't exist)
+- Silent failures make debugging difficult
+- Consider: try/except around socket operations with optional print() during development
+
 ## Limitations
 
 - Linux-only (uses AF_PACKET sockets)
-- No error handling for failed transmissions
-- No configurability (all interfaces, single transmission)
+- Requires root privileges
+- Single transmission per interface
 - Hardcoded interface filtering
-
-## Potential Improvements
-
-- [ ] Add command-line arguments (--interface, --ip, --count)
-- [ ] Add error handling and logging
-- [ ] Add interval/repeat options
-- [ ] Support single interface mode
-- [ ] Add dry-run mode
-- [ ] Validate broadcast address exists
-- [ ] Consolidate duplicate send functions
 
 ## License
 
